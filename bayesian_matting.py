@@ -111,34 +111,31 @@ def solve(mu_F, Sigma_F, mu_B, Sigma_B, C, sigma_C, alpha_init, maxIter, minLike
 def bayesian_matte(img, trimap, sigma=8, N=25, minN=10):
     img = img/255
 
-    h, w, c = img.shape
-    alpha = np.zeros((h, w))
-
     fg_mask = trimap == 255
     bg_mask = trimap == 0
     unknown_mask = True ^ np.logical_or(fg_mask, bg_mask)
+
     foreground = img*np.repeat(fg_mask[:, :, np.newaxis], 3, axis=2)
     background = img*np.repeat(bg_mask[:, :, np.newaxis], 3, axis=2)
 
     gaussian_weights = matlab_style_gauss2d((N, N), sigma)
     gaussian_weights = gaussian_weights/np.max(gaussian_weights)
 
+    alpha = np.zeros(trimap.shape)
     alpha[fg_mask] = 1
-    F = np.zeros(img.shape)
-    B = np.zeros(img.shape)
-    alphaRes = np.zeros(trimap.shape)
+    alpha[unknown_mask] = np.nan
 
     n = 1
-    alpha[unknown_mask] = np.nan
     nUnknown = np.sum(unknown_mask)
-    unkreg = unknown_mask
-
-    kernel = np.ones((3, 3))
+    #unkreg = unknown_mask
+    #kernel = np.ones((3, 3))
     while n < nUnknown:
-        unkreg = cv2.erode(unkreg.astype(np.uint8), kernel, iterations=1)
-        unkpixels = np.logical_and(np.logical_not(unkreg), unknown_mask)
 
-        Y, X = np.nonzero(unkpixels)
+        #unkreg = cv2.erode(unkreg.astype(np.uint8), kernel, iterations=1)
+        #unkpixels = np.logical_and(np.logical_not(unkreg), unknown_mask)
+
+        #Y, X = np.nonzero(unkpixels)
+        Y, X = np.nonzero(unknown_mask)
 
         for i in range(Y.shape[0]):
             if n % 100 == 0:
@@ -178,8 +175,12 @@ def bayesian_matte(img, trimap, sigma=8, N=25, minN=10):
             alpha_init = np.nanmean(a.ravel())
             # Solve for F,B for all cluster pairs
             f, b, alphaT = solve(mu_f, sigma_f, mu_b, sigma_b, p, 0.01, alpha_init, 50, 1e-6)
+            
+            # Update this affect the result very much
             foreground[y, x] = f.ravel()
             background[y, x] = b.ravel()
+            # Update this affect the result very much
+
             alpha[y, x] = alphaT
             unknown_mask[y, x] = 0
             n += 1
@@ -188,16 +189,28 @@ def bayesian_matte(img, trimap, sigma=8, N=25, minN=10):
 
 
 def main():
-    #img = cv2.imread("gandalf.png")[:, :, :3]
-    #trimap = cv2.imread("gandalfTrimap.png", cv2.IMREAD_GRAYSCALE)    
-    img = cv2.imread("woman.png")[:, :, :3]
-    trimap = cv2.imread("womanTrimap.png", cv2.IMREAD_GRAYSCALE)
+    img = cv2.imread("gandalf.png")[:, :, :3]
+    trimap = cv2.imread("gandalfTrimap.png", cv2.IMREAD_GRAYSCALE)    
+    #img = cv2.imread("woman.png")[:, :, :3]
+    #trimap = cv2.imread("womanTrimap.png", cv2.IMREAD_GRAYSCALE)
+
     alpha = bayesian_matte(img, trimap)
+    one_minus_alpha = np.ones(trimap.shape)
+    one_minus_alpha = one_minus_alpha - alpha
 
     alpha = np.repeat(alpha[:, :, np.newaxis], 3, axis=2)
+    one_minus_alpha = np.repeat(one_minus_alpha[:, :, np.newaxis], 3, axis=2)
+
     img = img * alpha
     img = img/255
-    cv2.imshow('result', img)
+
+    bg = cv2.imread("bg.png",cv2.IMREAD_COLOR)
+    bg = bg * one_minus_alpha
+    bg = bg/255
+
+    result = img + bg
+
+    cv2.imshow('result', result)
     cv2.waitKey(0)
     #scipy.misc.imsave('gandalfAlpha.png', alpha)
     #plt.title("Alpha matte")
