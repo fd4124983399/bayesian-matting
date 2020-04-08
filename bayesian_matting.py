@@ -188,9 +188,17 @@ def bayesian_matte(img, trimap, sigma=8, N=25, minN=10):
 
 
 def main():
-    img = scipy.misc.imread("gandalf.png")[:, :, :3]
-    trimap = scipy.misc.imread("gandalfTrimap.png", flatten='True')
+    #img = cv2.imread("gandalf.png")[:, :, :3]
+    #trimap = cv2.imread("gandalfTrimap.png", cv2.IMREAD_GRAYSCALE)    
+    img = cv2.imread("woman.png")[:, :, :3]
+    trimap = cv2.imread("womanTrimap.png", cv2.IMREAD_GRAYSCALE)
     alpha = bayesian_matte(img, trimap)
+
+    alpha = np.repeat(alpha[:, :, np.newaxis], 3, axis=2)
+    img = img * alpha
+    img = img/255
+    cv2.imshow('result', img)
+    cv2.waitKey(0)
     #scipy.misc.imsave('gandalfAlpha.png', alpha)
     #plt.title("Alpha matte")
     #plt.imshow(alpha, cmap='gray')
